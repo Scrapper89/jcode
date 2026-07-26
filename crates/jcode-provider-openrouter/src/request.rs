@@ -178,6 +178,7 @@ pub fn build_chat_messages(
     allow_reasoning: bool,
     include_reasoning_content: bool,
     allow_image_input: bool,
+    model: Option<&str>,
 ) -> Vec<Value> {
     // Build messages in OpenAI format
     let mut api_messages = Vec::new();
@@ -326,21 +327,41 @@ pub fn build_chat_messages(
                             reasoning_content.push_str(text);
                         }
                         ContentBlock::ToolUse {
-                            id, name, input, ..
+                            id, name, input, thought_signature, ..
                         } => {
                             let args = if input.is_object() {
                                 serde_json::to_string(input).unwrap_or_default()
                             } else {
                                 "{}".to_string()
                             };
-                            tool_calls.push(serde_json::json!({
+                            let mut tool_call_json = serde_json::json!({
                                 "id": sanitize_tool_id(id),
                                 "type": "function",
                                 "function": {
                                     "name": name,
                                     "arguments": args
                                 }
-                            }));
+                            });
+
+                            let is_gemini = model.map_or(false, |m| {
+                                let m_lower = m.to_ascii_lowercase();
+                                m_lower.contains("gemini-") || m_lower.contains("google/gemini")
+                            });
+
+                            if is_gemini {
+                                let signature = thought_signature
+                                    .as_ref()
+                                    .filter(|sig| !sig.is_empty())
+                                    .cloned()
+                                    .unwrap_or_else(|| "skip_thought_signature_validator".to_string());
+                                tool_call_json["extra_content"] = serde_json::json!({
+                                    "google": {
+                                        "thought_signature": signature
+                                    }
+                                });
+                            }
+
+                            tool_calls.push(tool_call_json);
                             tool_calls_seen.insert(id.clone());
                             if let Some(output) = pending_tool_results.remove(id) {
                                 post_tool_outputs.push((id.clone(), output));

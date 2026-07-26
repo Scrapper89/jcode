@@ -53,6 +53,7 @@ struct ToolCallAccumulator {
     id: String,
     name: String,
     arguments: String,
+    thought_signature: Option<String>,
 }
 
 impl OpenRouterStream {
@@ -154,6 +155,9 @@ impl OpenRouterStream {
         self.pending
             .push_back(StreamEvent::ToolInputDelta(tc.arguments));
         self.pending.push_back(StreamEvent::ToolUseEnd);
+        if let Some(signature) = tc.thought_signature {
+            self.pending.push_back(StreamEvent::ToolUseSignature(signature));
+        }
     }
 
     fn flush_tool_call_accumulators(&mut self) {
@@ -169,6 +173,7 @@ impl OpenRouterStream {
         id: Option<&str>,
         name: Option<&str>,
         arguments: Option<&str>,
+        thought_signature: Option<&str>,
     ) {
         let incoming_id = id
             .map(str::trim)
@@ -204,6 +209,12 @@ impl OpenRouterStream {
 
         if let Some(args) = arguments {
             tc.arguments.push_str(args);
+        }
+
+        if tc.thought_signature.is_none()
+            && let Some(sig) = thought_signature
+        {
+            tc.thought_signature = Some(sig.to_string());
         }
     }
 
@@ -330,6 +341,17 @@ impl OpenRouterStream {
                             for tc in tool_calls {
                                 let index = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0);
                                 let function = tc.get("function");
+                                let extra_content = tc.get("extra_content");
+                                let thought_signature = extra_content
+                                    .and_then(|ec| ec.get("google"))
+                                    .and_then(|g| g.get("thought_signature"))
+                                    .and_then(|ts| ts.as_str())
+                                    .or_else(|| {
+                                        extra_content
+                                            .and_then(|ec| ec.get("vertex"))
+                                            .and_then(|v| v.get("thought_signature"))
+                                            .and_then(|ts| ts.as_str())
+                                    });
                                 self.apply_tool_call_delta(
                                     index,
                                     tc.get("id").and_then(|i| i.as_str()),
@@ -339,6 +361,7 @@ impl OpenRouterStream {
                                     function
                                         .and_then(|f| f.get("arguments"))
                                         .and_then(|a| a.as_str()),
+                                    thought_signature,
                                 );
                             }
                         }
