@@ -520,6 +520,7 @@ pub fn openai_compatible_profile_static_models(profile: OpenAiCompatibleProfile)
             push("MiniMax-M2.5");
         }
         "gemini-api" => {
+            push("gemini-3.6-flash");
             push("gemini-2.5-flash");
             push("gemini-2.5-pro");
             push("gemini-2.0-flash");

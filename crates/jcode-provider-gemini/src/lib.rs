@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 pub const DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const AVAILABLE_MODELS: &[&str] = &[
+    "gemini-3.6-flash",
     "gemini-3.1-pro-preview",
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
@@ -16,6 +17,7 @@ pub const AVAILABLE_MODELS: &[&str] = &[
     "gemini-1.5-flash",
 ];
 pub const FALLBACK_MODELS: &[&str] = &[
+    "gemini-3.6-flash",
     "gemini-3.1-pro-preview",
     "gemini-3-pro-preview",
     "gemini-2.5-pro",
