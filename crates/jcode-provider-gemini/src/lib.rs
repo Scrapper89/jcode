@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-pub const DEFAULT_MODEL: &str = "gemini-2.5-pro";
+pub const DEFAULT_MODEL: &str = "gemini-3.6-flash";
 pub const AVAILABLE_MODELS: &[&str] = &[
     "gemini-3.6-flash",
     "gemini-3.1-pro-preview",
