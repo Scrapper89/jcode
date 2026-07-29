@@ -598,7 +598,7 @@ pub fn merge_gemini_model_lists(models: Vec<String>) -> Vec<String> {
     let mut preferred = Vec::new();
 
     for known in AVAILABLE_MODELS {
-        if models.iter().any(|model| model == known) && seen.insert((*known).to_string()) {
+        if seen.insert((*known).to_string()) {
             preferred.push((*known).to_string());
         }
     }
@@ -643,9 +643,10 @@ fn collect_gemini_model_ids(value: &Value, found: &mut HashSet<String>) {
 
 pub fn is_gemini_model_id(value: &str) -> bool {
     let trimmed = value.trim();
-    !trimmed.is_empty()
-        && trimmed.starts_with("gemini-")
-        && trimmed
+    let stripped = trimmed.strip_prefix("models/").unwrap_or(trimmed);
+    !stripped.is_empty()
+        && stripped.starts_with("gemini-")
+        && stripped
             .bytes()
             .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_'))
 }
