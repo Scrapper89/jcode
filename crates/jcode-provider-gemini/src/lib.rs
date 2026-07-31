@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
-pub const DEFAULT_MODEL: &str = "gemini-2.5-pro";
+pub const DEFAULT_MODEL: &str = "gemini-3.6-flash";
 pub const AVAILABLE_MODELS: &[&str] = &[
+    "gemini-3.6-flash",
     "gemini-3.1-pro-preview",
     "gemini-3-pro-preview",
     "gemini-3-flash-preview",
@@ -16,6 +17,7 @@ pub const AVAILABLE_MODELS: &[&str] = &[
     "gemini-1.5-flash",
 ];
 pub const FALLBACK_MODELS: &[&str] = &[
+    "gemini-3.6-flash",
     "gemini-3.1-pro-preview",
     "gemini-3-pro-preview",
     "gemini-2.5-pro",
@@ -346,7 +348,9 @@ pub fn build_contents_with_signature_policy(
                         if own_signature.is_some() {
                             last_signature = own_signature.clone();
                         }
-                        let signature = own_signature.or_else(|| last_signature.clone());
+                        let signature = own_signature
+                            .or_else(|| last_signature.clone())
+                            .or_else(|| Some("skip_thought_signature_validator".to_string()));
                         parts.push(GeminiPart {
                             function_call: Some(GeminiFunctionCall {
                                 name: name.clone(),
@@ -460,10 +464,58 @@ const GEMINI_UNSUPPORTED_SCHEMA_KEYS: &[&str] = &[
     "$defs",
     "definitions",
     "$comment",
+    "anyOf",
+    "oneOf",
+    "allOf",
 ];
 
+fn flatten_top_level_combinators(schema: &mut Value) {
+    let Some(output) = schema.as_object_mut() else {
+        return;
+    };
+
+    let mut merged_properties = output
+        .get("properties")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut saw_combinator = false;
+
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+        let Some(branches) = output
+            .remove(keyword)
+            .and_then(|value| value.as_array().cloned())
+        else {
+            continue;
+        };
+        saw_combinator = true;
+        for branch in branches {
+            let Some(branch) = branch.as_object() else {
+                continue;
+            };
+            if let Some(properties) = branch.get("properties").and_then(Value::as_object) {
+                for (name, property) in properties {
+                    merged_properties
+                        .entry(name.clone())
+                        .or_insert_with(|| property.clone());
+                }
+            }
+        }
+    }
+
+    if !saw_combinator {
+        return;
+    }
+
+    output.insert("type".to_string(), Value::String("object".to_string()));
+    output.insert("properties".to_string(), Value::Object(merged_properties));
+}
+
 fn gemini_compatible_schema(schema: &Value) -> Value {
-    match schema {
+    let mut normalized = schema.clone();
+    flatten_top_level_combinators(&mut normalized);
+    match normalized {
         Value::Object(map) => {
             let mut out = serde_json::Map::new();
             for (key, value) in map {
@@ -475,16 +527,16 @@ fn gemini_compatible_schema(schema: &Value) -> Value {
                 if key == "const" {
                     out.insert(
                         "enum".to_string(),
-                        Value::Array(vec![gemini_compatible_schema(value)]),
+                        Value::Array(vec![gemini_compatible_schema(&value)]),
                     );
                 } else {
-                    out.insert(key.clone(), gemini_compatible_schema(value));
+                    out.insert(key, gemini_compatible_schema(&value));
                 }
             }
             Value::Object(out)
         }
         Value::Array(items) => Value::Array(items.iter().map(gemini_compatible_schema).collect()),
-        _ => schema.clone(),
+        _ => normalized,
     }
 }
 
@@ -596,7 +648,7 @@ pub fn merge_gemini_model_lists(models: Vec<String>) -> Vec<String> {
     let mut preferred = Vec::new();
 
     for known in AVAILABLE_MODELS {
-        if models.iter().any(|model| model == known) && seen.insert((*known).to_string()) {
+        if seen.insert((*known).to_string()) {
             preferred.push((*known).to_string());
         }
     }
@@ -641,9 +693,10 @@ fn collect_gemini_model_ids(value: &Value, found: &mut HashSet<String>) {
 
 pub fn is_gemini_model_id(value: &str) -> bool {
     let trimmed = value.trim();
-    !trimmed.is_empty()
-        && trimmed.starts_with("gemini-")
-        && trimmed
+    let stripped = trimmed.strip_prefix("models/").unwrap_or(trimmed);
+    !stripped.is_empty()
+        && stripped.starts_with("gemini-")
+        && stripped
             .bytes()
             .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_'))
 }

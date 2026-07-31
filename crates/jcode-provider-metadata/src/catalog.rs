@@ -136,7 +136,7 @@ pub const GEMINI_OPENAI_COMPAT_PROFILE: OpenAiCompatibleProfile = OpenAiCompatib
     api_key_env: "GEMINI_API_KEY",
     env_file: "gemini.env",
     setup_url: "https://ai.google.dev/gemini-api/docs/openai",
-    default_model: Some("gemini-2.5-flash"),
+    default_model: Some("gemini-3.6-flash"),
     requires_api_key: true,
 };
 
@@ -1054,9 +1054,9 @@ pub const GEMINI_API_LOGIN_PROVIDER: LoginProviderDescriptor = LoginProviderDesc
         "google-ai-studio",
         "ai-studio",
     ],
-    menu_detail: "Google AI Studio Developer API key (OpenAI-compatible)",
+    menu_detail: "Google AI Studio Developer API key (native Gemini API)",
     recommended: false,
-    target: LoginProviderTarget::OpenAiCompatible(GEMINI_OPENAI_COMPAT_PROFILE),
+    target: LoginProviderTarget::Gemini,
     order: LoginProviderSurfaceOrder::new(Some(38), Some(38), Some(38), Some(38), Some(38)),
 };
 
