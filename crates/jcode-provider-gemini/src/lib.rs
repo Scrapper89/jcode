@@ -462,10 +462,58 @@ const GEMINI_UNSUPPORTED_SCHEMA_KEYS: &[&str] = &[
     "$defs",
     "definitions",
     "$comment",
+    "anyOf",
+    "oneOf",
+    "allOf",
 ];
 
+fn flatten_top_level_combinators(schema: &mut Value) {
+    let Some(output) = schema.as_object_mut() else {
+        return;
+    };
+
+    let mut merged_properties = output
+        .get("properties")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut saw_combinator = false;
+
+    for keyword in ["oneOf", "anyOf", "allOf"] {
+        let Some(branches) = output
+            .remove(keyword)
+            .and_then(|value| value.as_array().cloned())
+        else {
+            continue;
+        };
+        saw_combinator = true;
+        for branch in branches {
+            let Some(branch) = branch.as_object() else {
+                continue;
+            };
+            if let Some(properties) = branch.get("properties").and_then(Value::as_object) {
+                for (name, property) in properties {
+                    merged_properties
+                        .entry(name.clone())
+                        .or_insert_with(|| property.clone());
+                }
+            }
+        }
+    }
+
+    if !saw_combinator {
+        return;
+    }
+
+    output.insert("type".to_string(), Value::String("object".to_string()));
+    output.insert("properties".to_string(), Value::Object(merged_properties));
+}
+
 fn gemini_compatible_schema(schema: &Value) -> Value {
-    match schema {
+    let mut normalized = schema.clone();
+    flatten_top_level_combinators(&mut normalized);
+    match normalized {
         Value::Object(map) => {
             let mut out = serde_json::Map::new();
             for (key, value) in map {
@@ -477,16 +525,16 @@ fn gemini_compatible_schema(schema: &Value) -> Value {
                 if key == "const" {
                     out.insert(
                         "enum".to_string(),
-                        Value::Array(vec![gemini_compatible_schema(value)]),
+                        Value::Array(vec![gemini_compatible_schema(&value)]),
                     );
                 } else {
-                    out.insert(key.clone(), gemini_compatible_schema(value));
+                    out.insert(key, gemini_compatible_schema(&value));
                 }
             }
             Value::Object(out)
         }
         Value::Array(items) => Value::Array(items.iter().map(gemini_compatible_schema).collect()),
-        _ => schema.clone(),
+        _ => normalized,
     }
 }
 
