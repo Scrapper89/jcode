@@ -348,7 +348,9 @@ pub fn build_contents_with_signature_policy(
                         if own_signature.is_some() {
                             last_signature = own_signature.clone();
                         }
-                        let signature = own_signature.or_else(|| last_signature.clone());
+                        let signature = own_signature
+                            .or_else(|| last_signature.clone())
+                            .or_else(|| Some("skip_thought_signature_validator".to_string()));
                         parts.push(GeminiPart {
                             function_call: Some(GeminiFunctionCall {
                                 name: name.clone(),

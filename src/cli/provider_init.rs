@@ -1461,8 +1461,7 @@ async fn init_provider_with_options(
             select_initial_model_provider("copilot");
             Arc::new(provider::MultiProvider::new_fast())
         }
-        ProviderChoice::Gemini
-        | ProviderChoice::GeminiApi => {
+        ProviderChoice::Gemini | ProviderChoice::GeminiApi => {
             disable_subscription_runtime_mode();
             ensure_gemini_auth_allowed_for_explicit_choice()?;
             if auth::gemini::has_api_key() {
@@ -1529,9 +1528,9 @@ async fn init_provider_with_options(
         | ProviderChoice::Lmstudio
         | ProviderChoice::Ollama
         | ProviderChoice::Chutes
- | ProviderChoice::Cerebras
- | ProviderChoice::AlibabaCodingPlan
- | ProviderChoice::OpenaiCompatible => {
+        | ProviderChoice::Cerebras
+        | ProviderChoice::AlibabaCodingPlan
+        | ProviderChoice::OpenaiCompatible => {
             disable_subscription_runtime_mode();
             let profile = profile_for_choice(choice)
                 .ok_or_else(|| anyhow::anyhow!("missing provider profile for choice"))?;
